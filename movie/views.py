@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from movie.filters import MovieFilter
 from movie.models import Movie, User
 from movie.serializers import MovieListSerializer, UserSerializer, MovieCreateSerializer
+from movies_project.pagination import MediumPagination
 
 
 class MovieListView(generics.ListAPIView):
@@ -16,6 +17,7 @@ class MovieListView(generics.ListAPIView):
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['name']
     filterset_class = MovieFilter
+    pagination_class = MediumPagination
 
     def filter_queryset(self, queryset):
         return queryset
