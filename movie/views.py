@@ -1,8 +1,7 @@
+from django.db import OperationalError
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_yasg.openapi import Parameter, IN_HEADER, IN_QUERY, TYPE_STRING, TYPE_INTEGER
-from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, filters
+from rest_framework import generics, filters, status
 from rest_framework.response import Response
 
 from movie.filters import MovieFilter
@@ -23,17 +22,23 @@ class MovieListView(generics.ListAPIView):
         return queryset
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        search = self.request.query_params.get('search', None)
-        if search:
-            queryset = queryset.filter(name__icontains=search)
-        genre = self.request.query_params.get('genre', None)
-        if genre:
-            queryset = queryset.filter(genres__name__icontains=genre)
-        most_liked = self.request.query_params.get('most_liked', None)
-        if most_liked:
-            queryset = queryset.order_by('-likes_cnt')
-        return queryset
+        try:
+            queryset = super().get_queryset()
+            search = self.request.query_params.get('search', None)
+            if search:
+                queryset = queryset.filter(name__icontains=search)
+            genre = self.request.query_params.get('genre', None)
+            if genre:
+                queryset = queryset.filter(genres__name__icontains=genre)
+            most_liked = self.request.query_params.get('most_liked', None)
+            if most_liked:
+                queryset = queryset.order_by('-likes_cnt')
+            return queryset
+        except OperationalError:
+            return Response(
+                {'status': 'error', 'message': 'Ошибка обработки запроса'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class UserCreateView(generics.CreateAPIView):
@@ -51,9 +56,21 @@ class MovieLikeView(generics.GenericAPIView):
     serializer_class = MovieCreateSerializer
 
     def post(self, request, *args, **kwargs):
-        movie = self.get_object()
-        user_id = kwargs.get('user_id')
-        user = User.objects.get(pk=user_id)
+        try:
+            movie_id = kwargs.get('pk')
+            movie = Movie.objects.get(pk=movie_id)
+            user_id = kwargs.get('user_id')
+            user = User.objects.get(pk=user_id)
+        except Movie.DoesNotExist:
+            return Response(
+                {'status': 'fail', 'message': 'Фильм не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except User.DoesNotExist:
+            return Response(
+                {'status': 'fail', 'message': 'Пользователь не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         movie.likes.add(user)
         movie.save()
         return Response({'status': 'success'})

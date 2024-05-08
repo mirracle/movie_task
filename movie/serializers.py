@@ -34,10 +34,25 @@ class MovieCreateSerializer(serializers.ModelSerializer):
         model = Movie
         fields = ['id', 'name', 'release_year', 'genres']
 
+    @staticmethod
+    def validate_release_year(value):
+        if value > 9999 or value < 1900:
+            raise serializers.ValidationError(
+                "Введен неправильный формат даты выпуска. Доступные значения от 1900 до 9999"
+            )
+        return value
+
+    @staticmethod
+    def validate_genres(value):
+        if not value:
+            raise serializers.ValidationError(
+                "Вы не указали жанры фильма"
+            )
+
     def create(self, validated_data):
         genres_data = validated_data.pop('genres')
         movie = Movie.objects.create(**validated_data)
-        for genre_name in genres_data:
-            genre, _ = Genre.objects.get_or_create(name=genre_name.strip())
-            movie.genres.add(genre)
+        genrs = [Genre(name=genre_name.strip()) for genre_name in genres_data]
+        Genre.objects.bulk_create(genrs)
+        movie.genres.set(genrs)
         return movie
